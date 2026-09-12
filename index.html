@@ -7,15 +7,11 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>DeepSeek 对话工具</title>
 
-<!-- PDF.js：浏览器端 PDF 文本提取 -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<!-- Mammoth.js：浏览器端 DOCX 解析 -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.2/mammoth.browser.min.js"></script>
-<!-- KaTeX：数学公式渲染 -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
 <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
-<!-- Marked：Markdown 解析 -->
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
 <style>
@@ -23,6 +19,7 @@
     --bg: #0f0f0f; --panel: #1a1a1a; --border: #2a2a2a;
     --text: #e8e8e8; --muted: #888; --accent: #4a9eff;
     --user-bg: #1e3a5f; --bot-bg: #1a1a1a;
+    --danger: #ff5c5c; --success: #4caf50;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body {
@@ -39,10 +36,24 @@
     border-bottom: 1px solid var(--border); flex-shrink: 0;
     padding-top: max(10px, env(safe-area-inset-top));
   }
-  .topbar h1 { font-size: 16px; margin: 0; flex: 1; font-weight: 600; }
+  .topbar h1 { font-size: 16px; margin: 0; font-weight: 600; white-space: nowrap; }
+  .balance-badge {
+    font-size: 12px; padding: 3px 10px; border-radius: 20px;
+    background: #1a2a1a; border: 1px solid #2a4a2a; color: var(--success);
+    white-space: nowrap; cursor: pointer; transition: opacity .2s;
+    display: flex; align-items: center; gap: 4px;
+  }
+  .balance-badge:active { opacity: .7; }
+  .balance-badge.low { background: #2a1a1a; border-color: #4a2a2a; color: var(--danger); }
+  .balance-badge.loading { background: var(--panel); border-color: var(--border); color: var(--muted); }
+  .balance-badge .dot {
+    width: 6px; height: 6px; border-radius: 50%; background: currentColor;
+    display: inline-block;
+  }
   .topbar button {
     background: none; border: 1px solid var(--border); color: var(--text);
     padding: 6px 12px; border-radius: 8px; font-size: 13px; cursor: pointer;
+    white-space: nowrap;
   }
   .topbar button:active { background: var(--border); }
 
@@ -118,23 +129,15 @@
     color: var(--text) !important; font-size: 20px !important; }
 
   /* 通用面板样式 */
-  .pane {
-    flex: 1; overflow-y: auto; padding: 16px; -webkit-overflow-scrolling: touch;
-  }
-  .card {
-    background: var(--panel); border: 1px solid var(--border);
-    border-radius: 12px; padding: 16px; margin-bottom: 14px;
-  }
+  .pane { flex: 1; overflow-y: auto; padding: 16px; -webkit-overflow-scrolling: touch; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 14px; }
   .card h3 { margin: 0 0 10px; font-size: 15px; }
   .card p { margin: 0 0 12px; font-size: 13px; color: var(--muted); line-height: 1.5; }
-  .btn {
-    background: var(--accent); border: none; color: #fff;
-    padding: 10px 18px; border-radius: 10px; font-size: 14px;
-    cursor: pointer; width: 100%; font-weight: 500;
-  }
+  .btn { background: var(--accent); border: none; color: #fff; padding: 10px 18px; border-radius: 10px; font-size: 14px; cursor: pointer; width: 100%; font-weight: 500; }
   .btn:active { opacity: .8; }
   .btn:disabled { opacity: .4; }
   .btn.sec { background: var(--border); color: var(--text); }
+  .btn.danger { background: #4a1a1a; color: var(--danger); border: 1px solid #6a2a2a; }
   input[type=text], input[type=password], select, textarea.field {
     width: 100%; background: var(--bg); border: 1px solid var(--border);
     color: var(--text); border-radius: 10px; padding: 10px 12px;
@@ -142,18 +145,10 @@
   }
   input:focus, select:focus, textarea.field:focus { border-color: var(--accent); }
   label { font-size: 13px; color: var(--muted); display: block; margin-bottom: 4px; }
-  .file-drop {
-    border: 2px dashed var(--border); border-radius: 12px;
-    padding: 24px; text-align: center; color: var(--muted);
-    font-size: 14px; cursor: pointer; margin-bottom: 12px;
-  }
+  .file-drop { border: 2px dashed var(--border); border-radius: 12px; padding: 24px; text-align: center; color: var(--muted); font-size: 14px; cursor: pointer; margin-bottom: 12px; }
   .file-drop:active { border-color: var(--accent); }
   .file-drop input { display: none; }
-  .output {
-    background: var(--bg); border: 1px solid var(--border);
-    border-radius: 10px; padding: 14px; font-size: 14px;
-    line-height: 1.6; max-height: 400px; overflow-y: auto; margin-top: 12px; min-height: 60px;
-  }
+  .output { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 14px; font-size: 14px; line-height: 1.6; max-height: 400px; overflow-y: auto; margin-top: 12px; min-height: 60px; }
   .status { font-size: 12px; color: var(--muted); margin-top: 8px; text-align: center; }
   .spinner {
     display: inline-block; width: 14px; height: 14px;
@@ -168,15 +163,58 @@
     z-index: 100; padding: 20px;
   }
   .settings-overlay.show { display: flex; }
-  .settings-box {
-    background: var(--panel); border: 1px solid var(--border);
-    border-radius: 16px; padding: 20px; width: 100%; max-width: 420px;
-    max-height: 85vh; overflow-y: auto;
-  }
+  .settings-box { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 20px; width: 100%; max-width: 420px; max-height: 85vh; overflow-y: auto; }
   .settings-box h2 { margin: 0 0 16px; font-size: 18px; }
   .settings-box .row { margin-bottom: 12px; }
   .settings-box .hint { font-size: 12px; color: var(--muted); line-height: 1.5; margin-top: -6px; margin-bottom: 12px; }
   .img-preview { max-width: 100%; max-height: 200px; border-radius: 10px; margin: 8px 0; display: none; }
+
+  /* ========== 历史记录面板 ========== */
+  .history-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.5);
+    z-index: 90; display: none;
+  }
+  .history-overlay.show { display: block; }
+  .history-panel {
+    position: fixed; top: 0; left: 0; bottom: 0; width: 300px; max-width: 80vw;
+    background: var(--panel); border-right: 1px solid var(--border);
+    z-index: 95; transform: translateX(-100%); transition: transform .25s ease;
+    display: flex; flex-direction: column;
+    padding-top: max(20px, env(safe-area-inset-top));
+    padding-bottom: max(20px, env(safe-area-inset-bottom));
+  }
+  .history-panel.show { transform: translateX(0); }
+  .history-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+  }
+  .history-header h3 { margin: 0; font-size: 15px; }
+  .history-header button {
+    background: var(--accent); border: none; color: #fff;
+    padding: 6px 12px; border-radius: 8px; font-size: 13px; cursor: pointer;
+  }
+  .history-list { flex: 1; overflow-y: auto; padding: 8px; }
+  .history-item {
+    padding: 10px 12px; border-radius: 10px; cursor: pointer;
+    margin-bottom: 4px; border: 1px solid transparent;
+    display: flex; align-items: center; gap: 8px;
+    transition: background .15s;
+  }
+  .history-item:active { background: var(--border); }
+  .history-item.active { background: #1e3a5f; border-color: var(--accent); }
+  .history-item .info { flex: 1; min-width: 0; }
+  .history-item .title {
+    font-size: 14px; white-space: nowrap; overflow: hidden;
+    text-overflow: ellipsis; margin-bottom: 2px;
+  }
+  .history-item .time { font-size: 11px; color: var(--muted); }
+  .history-item .del-btn {
+    background: none; border: none; color: var(--muted);
+    font-size: 16px; cursor: pointer; padding: 4px; flex-shrink: 0;
+    border-radius: 6px;
+  }
+  .history-item .del-btn:active { background: #4a1a1a; color: var(--danger); }
+  .history-empty { text-align: center; color: var(--muted); font-size: 13px; padding: 40px 20px; line-height: 1.6; }
 </style>
 </head>
 <body>
@@ -185,6 +223,13 @@
   <!-- 顶栏 -->
   <div class="topbar">
     <h1>🐋 DeepSeek</h1>
+    <!-- 余额徽章 -->
+    <div class="balance-badge loading" id="balanceBadge" onclick="refreshBalance(true)">
+      <span class="dot"></span>
+      <span id="balanceText">查询中…</span>
+    </div>
+    <div style="flex:1"></div>
+    <button onclick="openHistory()" title="历史记录">📋</button>
     <button onclick="clearChat()">清空</button>
     <button onclick="toggleSettings()">⚙️</button>
   </div>
@@ -274,6 +319,21 @@
 
 </div>
 
+<!-- 历史记录遮罩 -->
+<div class="history-overlay" id="historyOverlay" onclick="closeHistory()"></div>
+
+<!-- 历史记录面板 -->
+<div class="history-panel" id="historyPanel">
+  <div class="history-header">
+    <h3>📋 对话历史</h3>
+    <button onclick="newConversation()">＋ 新对话</button>
+  </div>
+  <div class="history-list" id="historyList"></div>
+  <div style="padding: 8px 16px; border-top: 1px solid var(--border);">
+    <button class="btn danger" onclick="clearAllHistory()">清空全部历史</button>
+  </div>
+</div>
+
 <!-- 设置弹窗 -->
 <div class="settings-overlay" id="settingsOverlay">
   <div class="settings-box">
@@ -335,6 +395,7 @@ function saveSettings() {
   CFG.save('visionModel', document.getElementById('visionModel').value);
   toggleSettings();
   alert('设置已保存');
+  refreshBalance();
 }
 if (!CFG.apiKey) setTimeout(toggleSettings, 400);
 
@@ -346,6 +407,257 @@ document.querySelectorAll('.tab').forEach(btn => {
     btn.classList.add('active');
     document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
   };
+});
+
+// ========== ★ 余额自动更新 ==========
+let balanceTimer = null;
+let balanceLoading = false;
+
+async function refreshBalance(manual = false) {
+  if (!CFG.apiKey || !CFG.apiBase) {
+    setBalanceText('未配置', 'loading');
+    return;
+  }
+  if (balanceLoading) return;
+  balanceLoading = true;
+
+  const badge = document.getElementById('balanceBadge');
+  if (manual) badge.classList.add('loading');
+
+  try {
+    const resp = await fetch(CFG.apiBase + '/user/balance', {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'Authorization': 'Bearer ' + CFG.apiKey
+      }
+    });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const data = await resp.json();
+
+    if (data.is_available && data.balance_infos && data.balance_infos.length > 0) {
+      const info = data.balance_infos[0];
+      const symbol = info.currency === 'USD' ? '$' : '¥';
+      const text = symbol + info.total_balance;
+      // 余额低于 1 元/美元时变红
+      const isLow = parseFloat(info.total_balance) < 1;
+      setBalanceText(text, isLow ? 'low' : '');
+    } else {
+      setBalanceText('余额不足', 'low');
+    }
+  } catch (e) {
+    console.warn('余额查询失败:', e);
+    if (manual) setBalanceText('查询失败', 'loading');
+  } finally {
+    balanceLoading = false;
+    if (manual) badge.classList.remove('loading');
+  }
+}
+
+function setBalanceText(text, cls) {
+  const badge = document.getElementById('balanceBadge');
+  const span = document.getElementById('balanceText');
+  span.textContent = text;
+  badge.className = 'balance-badge ' + (cls || '');
+}
+
+// 启动自动刷新
+function startBalanceTimer() {
+  if (balanceTimer) clearInterval(balanceTimer);
+  balanceTimer = setInterval(() => refreshBalance(false), 60000); // 每60秒
+}
+
+// 页面加载后查询一次
+window.addEventListener('load', () => {
+  setTimeout(() => { refreshBalance(false); startBalanceTimer(); }, 800);
+});
+
+// ========== ★ 对话历史记录 ==========
+const HISTORY_KEY = 'ds_conversations';
+let currentConvId = null;
+
+function loadAllConversations() {
+  try {
+    return JSON.parse(localStorage.getItem(HISTORY_KEY) || '{}');
+  } catch (e) { return {}; }
+}
+
+function saveAllConversations(convs) {
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(convs));
+}
+
+function getCurrentConversation() {
+  const convs = loadAllConversations();
+  return convs[currentConvId] || null;
+}
+
+function newConversation() {
+  const convs = loadAllConversations();
+  const id = 'conv_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+  convs[id] = {
+    id: id,
+    title: '新对话',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    messages: []
+  };
+  saveAllConversations(convs);
+  currentConvId = id;
+  localStorage.setItem('ds_currentConvId', id);
+
+  // 清空界面
+  chatHistory.length = 0;
+  document.getElementById('messages').innerHTML = '';
+  closeHistory();
+  renderHistoryList();
+}
+
+function switchConversation(id) {
+  const convs = loadAllConversations();
+  const conv = convs[id];
+  if (!conv) return;
+  currentConvId = id;
+  localStorage.setItem('ds_currentConvId', id);
+
+  // 恢复消息到界面
+  chatHistory.length = 0;
+  const box = document.getElementById('messages');
+  box.innerHTML = '';
+  conv.messages.forEach(m => {
+    chatHistory.push({ role: m.role, content: m.content });
+    const div = document.createElement('div');
+    div.className = 'msg ' + (m.role === 'user' ? 'user' : 'bot');
+    if (m.role === 'user') {
+      div.textContent = m.content;
+    } else {
+      renderContent(div, m.content);
+    }
+    box.appendChild(div);
+  });
+  box.scrollTop = box.scrollHeight;
+  closeHistory();
+  renderHistoryList();
+}
+
+function deleteConversation(id, event) {
+  event.stopPropagation();
+  if (!confirm('确定删除这个对话吗？')) return;
+  const convs = loadAllConversations();
+  delete convs[id];
+  saveAllConversations(convs);
+  if (currentConvId === id) {
+    currentConvId = null;
+    localStorage.removeItem('ds_currentConvId');
+    chatHistory.length = 0;
+    document.getElementById('messages').innerHTML = '';
+  }
+  renderHistoryList();
+}
+
+function clearAllHistory() {
+  if (!confirm('确定清空全部对话历史吗？此操作不可恢复。')) return;
+  localStorage.removeItem(HISTORY_KEY);
+  localStorage.removeItem('ds_currentConvId');
+  currentConvId = null;
+  chatHistory.length = 0;
+  document.getElementById('messages').innerHTML = '';
+  renderHistoryList();
+  closeHistory();
+}
+
+function renderHistoryList() {
+  const convs = loadAllConversations();
+  const list = document.getElementById('historyList');
+  const items = Object.values(convs).sort((a, b) =>
+    new Date(b.updatedAt) - new Date(a.updatedAt)
+  );
+
+  if (items.length === 0) {
+    list.innerHTML = '<div class="history-empty">暂无历史记录<br>开始对话后会自动保存</div>';
+    return;
+  }
+
+  list.innerHTML = items.map(c => {
+    const isActive = c.id === currentConvId;
+    const time = new Date(c.updatedAt);
+    const timeStr = formatTime(time);
+    const title = escapeHtml(c.title || '新对话');
+    return `
+      <div class="history-item ${isActive ? 'active' : ''}" onclick="switchConversation('${c.id}')">
+        <div class="info">
+          <div class="title">${title}</div>
+          <div class="time">${timeStr} · ${c.messages.length} 条</div>
+        </div>
+        <button class="del-btn" onclick="deleteConversation('${c.id}', event)">🗑</button>
+      </div>
+    `;
+  }).join('');
+}
+
+function formatTime(date) {
+  const now = new Date();
+  const diff = now - date;
+  if (diff < 60000) return '刚刚';
+  if (diff < 3600000) return Math.floor(diff / 60000) + ' 分钟前';
+  if (diff < 86400000) return Math.floor(diff / 3600000) + ' 小时前';
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  const hh = String(date.getHours()).padStart(2, '0');
+  const mm = String(date.getMinutes()).padStart(2, '0');
+  return `${m}-${d} ${hh}:${mm}`;
+}
+
+function escapeHtml(str) {
+  return str.replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
+
+function appendMessageToCurrentConv(role, content) {
+  const convs = loadAllConversations();
+  if (!currentConvId) {
+    // 自动创建新对话
+    newConversation();
+  }
+  const conv = convs[currentConvId];
+  if (!conv) return;
+
+  conv.messages.push({ role, content, timestamp: new Date().toISOString() });
+  conv.updatedAt = new Date().toISOString();
+
+  // 首次消息作为标题
+  if (conv.title === '新对话' && role === 'user') {
+    conv.title = content.slice(0, 20) + (content.length > 20 ? '…' : '');
+  }
+
+  convs[currentConvId] = conv;
+  saveAllConversations(convs);
+  renderHistoryList();
+}
+
+// 打开/关闭历史面板
+function openHistory() {
+  renderHistoryList();
+  document.getElementById('historyPanel').classList.add('show');
+  document.getElementById('historyOverlay').classList.add('show');
+}
+function closeHistory() {
+  document.getElementById('historyPanel').classList.remove('show');
+  document.getElementById('historyOverlay').classList.remove('show');
+}
+
+// 页面加载时恢复上次的对话
+window.addEventListener('load', () => {
+  const lastId = localStorage.getItem('ds_currentConvId');
+  const convs = loadAllConversations();
+  if (lastId && convs[lastId]) {
+    switchConversation(lastId);
+  } else if (Object.keys(convs).length > 0) {
+    const latest = Object.values(convs).sort((a, b) =>
+      new Date(b.updatedAt) - new Date(a.updatedAt)
+    )[0];
+    switchConversation(latest.id);
+  }
 });
 
 // ========== 核心 API 调用 ==========
@@ -391,20 +703,14 @@ async function callAPI(messages, model, stream = false, onChunk = null) {
   return full;
 }
 
-// ========== 渲染辅助函数（解决 LaTeX 乱码的核心） ==========
+// ========== 渲染辅助函数 ==========
 function renderContent(el, text) {
   if (!text) return;
   try {
-    // 1. 预处理：将 \( ... \) 转为 $ ... $，将 \[ ... \] 转为 $$ ... $$
-    // 这是关键！否则 marked 会吃掉反斜杠，导致 KaTeX 识别不到公式
     let processedText = text
       .replace(/\\\[([\s\S]*?)\\\]/g, '$$$$$1$$$$')
       .replace(/\\\(([\s\S]*?)\\\)/g, '$$$1$$');
-
-    // 2. 使用 marked 解析 Markdown
     el.innerHTML = marked.parse(processedText);
-
-    // 3. 使用 KaTeX 渲染数学公式
     renderMathInElement(el, {
       delimiters: [
         { left: '$$', right: '$$', display: true },
@@ -423,9 +729,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc =
 
 async function parseFile(file) {
   const ext = file.name.split('.').pop().toLowerCase();
-  if (ext === 'txt') {
-    return await file.text();
-  }
+  if (ext === 'txt') return await file.text();
   if (ext === 'pdf') {
     const buf = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
@@ -479,11 +783,16 @@ async function sendMessage() {
   const input = document.getElementById('chatInput');
   const text = input.value.trim();
   if (!text || document.getElementById('sendBtn').disabled) return;
+
+  // 如果没有当前对话，自动创建
+  if (!currentConvId) newConversation();
+
   input.value = '';
   document.getElementById('sendBtn').disabled = true;
 
   addMsg('user', text);
   chatHistory.push({ role: 'user', content: text });
+  appendMessageToCurrentConv('user', text);
 
   if (pendingFileText) {
     chatHistory[chatHistory.length - 1].content =
@@ -501,6 +810,9 @@ async function sendMessage() {
       document.getElementById('messages').scrollTop = 999999;
     });
     chatHistory.push({ role: 'assistant', content: full });
+    appendMessageToCurrentConv('assistant', full);
+    // 发送消息后刷新余额
+    refreshBalance(false);
   } catch (e) {
     botDiv.textContent = '❌ ' + e.message;
   }
@@ -512,6 +824,7 @@ function clearChat() {
   pendingFileText = '';
   document.getElementById('messages').innerHTML = '';
 }
+
 document.getElementById('chatInput').addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
 });
@@ -540,6 +853,7 @@ async function learnDocument() {
     const result = await callAPI([{ role: 'user', content: prompt }], CFG.textModel);
     renderContent(out, result);
     status.textContent = '✅ 完成（原文 ' + text.length + ' 字符）';
+    refreshBalance(false);
   } catch (e) {
     status.textContent = '❌ ' + e.message;
   }
@@ -585,6 +899,7 @@ async function sendImage() {
     const result = await callAPI(messages, CFG.visionModel);
     renderContent(out, result);
     status.textContent = '✅ 完成';
+    refreshBalance(false);
   } catch (e) {
     status.textContent = '❌ ' + e.message;
   }
@@ -625,6 +940,7 @@ async function translateDoc() {
     }
     lastTranslation = results.join('\n\n');
     status.textContent = '✅ 翻译完成，共 ' + chunks.length + ' 块';
+    refreshBalance(false);
   } catch (e) {
     status.textContent = '❌ ' + e.message;
   }
