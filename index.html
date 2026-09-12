@@ -6,10 +6,18 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>DeepSeek 对话工具</title>
-<!-- pdf.js：浏览器端 PDF 文本提取 -->
+
+<!-- PDF.js：浏览器端 PDF 文本提取 -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<!-- mammoth.js：浏览器端 DOCX 解析 -->
+<!-- Mammoth.js：浏览器端 DOCX 解析 -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.2/mammoth.browser.min.js"></script>
+<!-- KaTeX：数学公式渲染 -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+<!-- Marked：Markdown 解析 -->
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
 <style>
   :root {
     --bg: #0f0f0f; --panel: #1a1a1a; --border: #2a2a2a;
@@ -64,16 +72,28 @@
   .msg {
     max-width: 85%; padding: 10px 14px; border-radius: 16px;
     line-height: 1.5; font-size: 15px; word-wrap: break-word;
-    white-space: pre-wrap; animation: fadeIn .2s;
+    animation: fadeIn .2s;
   }
   @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } }
   .msg.user { align-self: flex-end; background: var(--user-bg); border-bottom-right-radius: 4px; }
-  .msg.bot { align-self: flex-start; background: var(--bot-bg); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+  .msg.bot { align-self: flex-start; background: var(--bot-bg); border: 1px solid var(--border); border-bottom-left-radius: 4px; width: 100%; max-width: 100%; }
   .msg.bot img { max-width: 100%; border-radius: 8px; margin-top: 6px; }
   .msg .meta { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
-  .msg pre { background: #0a0a0a; padding: 10px; border-radius: 8px; overflow-x: auto; font-size: 13px; }
-  .msg code { font-family: "SF Mono", Menlo, monospace; font-size: 13px; background: #0a0a0a; padding: 2px 5px; border-radius: 4px; }
-  .msg pre code { padding: 0; background: none; }
+
+  /* Markdown 内容样式 */
+  .msg p, .output p { margin: 0 0 8px 0; }
+  .msg p:last-child, .output p:last-child { margin-bottom: 0; }
+  .msg ul, .msg ol, .output ul, .output ol { margin: 6px 0; padding-left: 20px; }
+  .msg li, .output li { margin-bottom: 4px; }
+  .msg pre, .output pre { background: #0a0a0a; padding: 10px; border-radius: 8px; overflow-x: auto; font-size: 13px; }
+  .msg code, .output code { font-family: "SF Mono", Menlo, monospace; font-size: 13px; background: #0a0a0a; padding: 2px 5px; border-radius: 4px; }
+  .msg pre code, .output pre code { padding: 0; background: none; }
+  .msg table, .output table { border-collapse: collapse; width: 100%; margin: 10px 0; font-size: 13px; }
+  .msg th, .msg td, .output th, .output td { border: 1px solid var(--border); padding: 6px 8px; text-align: center; }
+  .msg th, .output th { background: #0a0a0a; font-weight: 600; }
+  .msg h1, .msg h2, .msg h3, .msg h4, .output h1, .output h2, .output h3, .output h4 { margin: 12px 0 6px; font-size: 15px; }
+  .msg hr, .output hr { border: none; border-top: 1px solid var(--border); margin: 12px 0; }
+  .katex-display { overflow-x: auto; overflow-y: hidden; padding: 4px 0; }
 
   /* 输入区 */
   .input-bar {
@@ -132,8 +152,7 @@
   .output {
     background: var(--bg); border: 1px solid var(--border);
     border-radius: 10px; padding: 14px; font-size: 14px;
-    line-height: 1.6; white-space: pre-wrap; word-wrap: break-word;
-    max-height: 400px; overflow-y: auto; margin-top: 12px; min-height: 60px;
+    line-height: 1.6; max-height: 400px; overflow-y: auto; margin-top: 12px; min-height: 60px;
   }
   .status { font-size: 12px; color: var(--muted); margin-top: 8px; text-align: center; }
   .spinner {
@@ -275,7 +294,7 @@
       <label>文本模型</label>
       <select id="textModel">
         <option value="deepseek-v4-pro">deepseek-v4-pro（旗舰）</option>
-        <option value="deepseek-flash">deepseek-flash（快速）</option>
+        <option value="deepseek-v4-flash">deepseek-v4-flash（快速）</option>
       </select>
     </div>
     <div class="row">
@@ -373,6 +392,28 @@ async function callAPI(messages, model, stream = false, onChunk = null) {
   return full;
 }
 
+// ========== 渲染辅助函数（Markdown + LaTeX） ==========
+function renderContent(el, text) {
+  if (!text) return;
+  try {
+    // 1. 使用 marked 解析 Markdown
+    el.innerHTML = marked.parse(text);
+    // 2. 使用 KaTeX 渲染数学公式
+    renderMathInElement(el, {
+      delimiters: [
+        { left: '$$', right: '$$', display: true },
+        { left: '$', right: '$', display: false },
+        { left: '\\(', right: '\\)', display: false },
+        { left: '\\[', right: '\\]', display: true }
+      ],
+      throwOnError: false
+    });
+  } catch (e) {
+    // 如果解析出错，保底显示纯文本
+    el.textContent = text;
+  }
+}
+
 // ========== 文件解析 ==========
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -409,7 +450,11 @@ function addMsg(role, text) {
   const box = document.getElementById('messages');
   const div = document.createElement('div');
   div.className = 'msg ' + role;
-  div.textContent = text;
+  if (role === 'user') {
+    div.textContent = text;
+  } else {
+    renderContent(div, text);
+  }
   box.appendChild(div);
   box.scrollTop = box.scrollHeight;
   return div;
@@ -449,7 +494,7 @@ async function sendMessage() {
   try {
     const messages = [{ role: 'system', content: '你是一个乐于助人的 AI 助手，回答准确、简洁。' }, ...chatHistory];
     const full = await callAPI(messages, CFG.textModel, true, (delta, f) => {
-      botDiv.textContent = f;
+      renderContent(botDiv, f);
       document.getElementById('messages').scrollTop = 999999;
     });
     chatHistory.push({ role: 'assistant', content: full });
@@ -484,13 +529,13 @@ async function learnDocument() {
   const status = document.getElementById('learnStatus');
   if (!file) { alert('请先选择文档'); return; }
   status.innerHTML = '<span class="spinner"></span>正在解析文档…';
-  out.textContent = '';
+  out.innerHTML = '';
   try {
     const text = await parseFile(file);
     status.innerHTML = '<span class="spinner"></span>AI 正在分析…';
     const prompt = '请对以下内容进行结构化总结，包括核心要点、关键概念和学习建议：\n\n' + text.slice(0, 14000);
     const result = await callAPI([{ role: 'user', content: prompt }], CFG.textModel);
-    out.textContent = result;
+    renderContent(out, result);
     status.textContent = '✅ 完成（原文 ' + text.length + ' 字符）';
   } catch (e) {
     status.textContent = '❌ ' + e.message;
@@ -518,7 +563,7 @@ async function sendImage() {
   const status = document.getElementById('imageStatus');
   if (!file) { alert('请先选择图片'); return; }
   status.innerHTML = '<span class="spinner"></span>AI 正在分析图片…';
-  out.textContent = '';
+  out.innerHTML = '';
   try {
     const b64 = await new Promise((resolve, reject) => {
       const r = new FileReader();
@@ -535,7 +580,7 @@ async function sendImage() {
       ]
     }];
     const result = await callAPI(messages, CFG.visionModel);
-    out.textContent = result;
+    renderContent(out, result);
     status.textContent = '✅ 完成';
   } catch (e) {
     status.textContent = '❌ ' + e.message;
@@ -561,7 +606,7 @@ async function translateDoc() {
   const out = document.getElementById('transOutput');
   const status = document.getElementById('transStatus');
   if (!file) { alert('请先选择文档'); return; }
-  out.textContent = '';
+  out.innerHTML = '';
   status.innerHTML = '<span class="spinner"></span>正在解析文档…';
   try {
     const text = await parseFile(file);
@@ -572,7 +617,7 @@ async function translateDoc() {
       const prompt = '请将以下内容完整翻译为' + lang + '，保持格式和语气，只输出译文：\n\n' + chunks[i];
       const r = await callAPI([{ role: 'user', content: prompt }], CFG.textModel);
       results.push(r);
-      out.textContent = results.join('\n\n');
+      renderContent(out, results.join('\n\n'));
       status.innerHTML = '<span class="spinner"></span>翻译中… (' + (i + 1) + '/' + chunks.length + ')';
     }
     lastTranslation = results.join('\n\n');
