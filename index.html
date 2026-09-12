@@ -367,7 +367,6 @@ async function callAPI(messages, model, stream = false, onChunk = null) {
     const data = await resp.json();
     return data.choices[0].message.content;
   }
-  // 流式读取（兼容 Safari）
   const reader = resp.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '', full = '';
@@ -392,24 +391,28 @@ async function callAPI(messages, model, stream = false, onChunk = null) {
   return full;
 }
 
-// ========== 渲染辅助函数（Markdown + LaTeX） ==========
+// ========== 渲染辅助函数（解决 LaTeX 乱码的核心） ==========
 function renderContent(el, text) {
   if (!text) return;
   try {
-    // 1. 使用 marked 解析 Markdown
-    el.innerHTML = marked.parse(text);
-    // 2. 使用 KaTeX 渲染数学公式
+    // 1. 预处理：将 \( ... \) 转为 $ ... $，将 \[ ... \] 转为 $$ ... $$
+    // 这是关键！否则 marked 会吃掉反斜杠，导致 KaTeX 识别不到公式
+    let processedText = text
+      .replace(/\\\[([\s\S]*?)\\\]/g, '$$$$$1$$$$')
+      .replace(/\\\(([\s\S]*?)\\\)/g, '$$$1$$');
+
+    // 2. 使用 marked 解析 Markdown
+    el.innerHTML = marked.parse(processedText);
+
+    // 3. 使用 KaTeX 渲染数学公式
     renderMathInElement(el, {
       delimiters: [
         { left: '$$', right: '$$', display: true },
-        { left: '$', right: '$', display: false },
-        { left: '\\(', right: '\\)', display: false },
-        { left: '\\[', right: '\\]', display: true }
+        { left: '$', right: '$', display: false }
       ],
       throwOnError: false
     });
   } catch (e) {
-    // 如果解析出错，保底显示纯文本
     el.textContent = text;
   }
 }
